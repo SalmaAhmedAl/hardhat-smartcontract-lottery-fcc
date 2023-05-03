@@ -1,48 +1,56 @@
-const { network } = require("hardhat")
-const { developmentChains, networkConfig } = require("../helper-hardhat-config")
-const { verify } = require("../helper-hardhat-config")
+const { network, ethers } = require("hardhat")
+const {
+    developmentChains,
+    networkConfig,
+    VERIFICATION_BLOCK_CONFIRMATIONS,
+} = require("../helper-hardhat-config")
+const { verify } = require("../utils/verify")
 
-const VRF_SUB_FUND_AMOUNT = ethers.utils.parseEther("3")
+const FUND_AMOUNT = ethers.utils.parseEther("1") // 1 Ether, or 1e18 (10^18) Wei
 module.exports = async function ({ getNamedAccounts, deployments }) {
     const { deploy, log } = deployments
     const { deployer } = await getNamedAccounts()
     const chainId = network.config.chainId
-    let vrfCoordinatorV2Address, subscriptionId
+    let vrfCoordinatorV2Address, subscriptionId, vrfCoordinatorV2Mock
 
     if (developmentChains.includes(network.name)) {
-        const vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock")
+        // create VRFV2 Subscription
+        vrfCoordinatorV2Mock = await ethers.getContract("VRFCoordinatorV2Mock")
         vrfCoordinatorV2Address = vrfCoordinatorV2Mock.address
+
         //create subscription id
         const transactionResponse = await vrfCoordinatorV2Mock.createSubscription()
-        const transactionReceipt = await transactionResponse.wait(1) //inside transactionReceipt ..there is emit event that get subscription id
+        const transactionReceipt = await transactionResponse.wait() //inside transactionReceipt ..there is emit event that get subscription id
         subscriptionId = transactionReceipt.events[0].args.subId
+
         //We need to fund this sub scription
         //Usually, you'd need the link token on areal network
-        await vrfCoordinatorV2Mock.fundSubscription(subscriptionId)
+        await vrfCoordinatorV2Mock.fundSubscription(subscriptionId, FUND_AMOUNT)
     } else {
         //else if we are not on development network
         vrfCoordinatorV2Address = networkConfig[chainId]["vrfCoordinatorV2"]
         subscriptionId = networkConfig[chainId]["subscriptionId"]
     }
-    const entranceFee = networkConfig[chainId]["enterenceFee"]
-    const gasLane = networkConfig[chainId]["gasLane"]
-    const callbackGasLimit = networkConfig[chainId]["callbackGasLimit"]
-    const interval = networkConfig[chainId]["interval"]
+    const waitBlockConfirmations = developmentChains.includes(network.name)
+        ? 1
+        : VERIFICATION_BLOCK_CONFIRMATIONS
+
+    log("----------------------------------------------------")
 
     const args = [
         vrfCoordinatorV2Address,
-        entranceFee,
-        gasLane,
         subscriptionId,
-        callbackGasLimit,
-        interval,
+        networkConfig[chainId]["gasLane"],
+        networkConfig[chainId]["keepersUpdateInterval"],
+        networkConfig[chainId]["raffleEntranceFee"],
+        networkConfig[chainId]["callbackGasLimit"],
     ]
     //This how I deploy the Raffle
     const raffle = await deploy("Raffle", {
         from: deployer,
         args: args,
         log: true,
-        waitConfirmations: network.config.blockConfirmations || 1,
+        waitConfirmations: waitBlockConfirmations,
     })
 
     if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {

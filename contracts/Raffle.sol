@@ -29,10 +29,10 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface{
         CALCULATING
     } // == uint256 0= OPEN  1= CALCULATING
     /*State Variables*/
-    uint256 private immutable i_enterenceFee;
+    uint256 private immutable i_entranceFee;
     address payable[] private s_players;
     VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
-    bytes32 private immutable i_gasLan;
+    bytes32 private immutable i_gasLane;
     uint64 private immutable i_subscriptionId;
     uint32 private immutable i_callbackGasLimit;
     uint16 private constant REQUEST_CONFIRMATIONS = 3;
@@ -50,28 +50,29 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface{
 
     /*Functions */
     constructor(
-        address vrfCoordinatorV2,// contract address ..We will use mocks to get address because we deploy on development chain
-        uint256 enterenceFee,
-        bytes32 gasLan,
+        address vrfCoordinatorV2,
         uint64 subscriptionId,
-        uint32 callbackGasLimit,
-        uint256 interval
+        bytes32 gasLane, // keyHash
+        uint256 interval,
+        uint256 entranceFee,
+        uint32 callbackGasLimit
+        
     ) VRFConsumerBaseV2(vrfCoordinatorV2) {
-        i_enterenceFee = enterenceFee;
-        i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
-        i_gasLan = gasLan;
+       i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinatorV2);
+        i_gasLane = gasLane;
+        i_interval = interval;
         i_subscriptionId = subscriptionId;
-        i_callbackGasLimit = callbackGasLimit;
+        i_entranceFee = entranceFee;
         s_raffleState = RaffleState.OPEN;
         s_lastTimeStamp = block.timestamp;
-        i_interval = interval;
+        i_callbackGasLimit = callbackGasLimit;
     }
 
     //if the lottery open, enter Raffle (Simply)
     function enterRaffle() public payable {
         //using custom error(instead of require) is more than Gas efficient
         //because instead of storing this string.. we just store it in our error code in our contract
-        if (msg.value < i_enterenceFee) {
+        if (msg.value < i_entranceFee) {
             revert Raffle__NotEnoughETHEntered();
         }
         if (s_raffleState != RaffleState.OPEN) {
@@ -116,7 +117,7 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface{
         }
         s_raffleState = RaffleState.CALCULATING;
         uint256 reqeustId = i_vrfCoordinator.requestRandomWords(
-            i_gasLan, //gasLan
+            i_gasLane, //gasLan
             i_subscriptionId,
             REQUEST_CONFIRMATIONS,
             i_callbackGasLimit,
@@ -146,7 +147,7 @@ contract Raffle is VRFConsumerBaseV2, AutomationCompatibleInterface{
 
     /* view/ pure functions*/
     function getEnterenceFee() public view returns (uint256) {
-        return i_enterenceFee;
+        return i_entranceFee;
     }
 
     function getPlayer(uint256 index) public view returns (address) {

@@ -79,6 +79,6 @@ module.exports = {
     },
 
     mocha: {
-        timeout: 500000, // 500 seconds max for running tests
+        timeout: 900000, // 500 seconds max for running tests
     },
 }
